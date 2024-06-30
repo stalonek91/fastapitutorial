@@ -1,96 +1,85 @@
-from fastapi import FastAPI, Body, Response, status, HTTPException
 from pydantic import BaseModel, Field
-from typing import Union, Optional
+from fastapi import FastAPI, Body, Response, status, HTTPException, Depends, Request
+from typing import Union, Optional, List, Dict
 import random
+import psycopg2
+from psycopg2 import sql
+from psycopg2.extras import RealDictCursor
+import os
+from . import models, database, schemas
+from .database import engine, get_sql_db
+from sqlalchemy.orm import Session
 
+models.base.metadata.create_all(bind=engine)
+
+#TODO: youtube: 5:16
 
 app = FastAPI()
 
-hello_dict = {"Hello": "Sylwek", "kwoka": "psiocha"}
+
+@app.get("/sqlpost", response_model=List[schemas.Post])
+def read_sql_posts(db: Session = Depends(get_sql_db)):
+    posts = db.query(models.Post).all()
+    return posts
 
 
-my_posts = [{"title": "Lord of the rings", "content": "Content of LOTR", "id": 1},
-            {"title": "Jack the Ripper", "content": "Content of J the Ripper", "id": 2}
-            ]
+@app.get("/sqlpost/{post_id}", response_model=schemas.Post)
+def get_post_id(post_id: int, db: Session = Depends(get_sql_db)):
+    post = db.query(models.Post).filter(models.Post.id == post_id).first()
 
-class Post(BaseModel):
-    title: str
-    content: str
-    id: int = Field(default_factory=lambda: random.randint(1,1000))
-    is_published: bool = True
-    is_bestseller: Optional[bool] = None
+    if not post:
+        raise HTTPException(status_code=404, detail=f'Post with id:{post_id} not found!')
+
+    return post
 
 
-@app.get("/")
-def index():
-    dict_iter = iter(hello_dict.items())
-    k,v = next(dict_iter)
-    k,v = next(dict_iter)
-    return {f"Key is: {k}, value is: {v}"}
+#post with pydantic not request
+@app.post("/add_post_pydantic", status_code=status.HTTP_201_CREATED)
+def add_post_pydantic(post: schemas.Post, db: Session = Depends(get_sql_db)):
+    new_post = models.Post(
+        **post.model_dump()
+    )
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+
+    return new_post
+
+@app.post("/add_sql_post/", status_code=status.HTTP_201_CREATED)
+async def add_sql_post(request: Request, db: Session = Depends(get_sql_db)):
+    data = await request.json()
+    title = data.get('title')
+    content = data.get('content')
+    published = data.get('published', True)
+
+    if not title or not content:
+        raise HTTPException(status_code=400, detail='Title and content must be provided')
+    
+    new_post = models.Posts(
+        title=title,
+        content=content,
+        published=published
+    )
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return new_post
 
 
-@app.get("/posts")
-def get_posts():
-    return {"posts": my_posts}
 
 
-@app.post("/posts", status_code=status.HTTP_201_CREATED)
-def createpost(post: Post):
-    my_posts.append(post.model_dump())
-    return {"data": post}
+
+
+
+
+
+
+
+
+
+
  
-@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int):
-    post_to_delete = find_index_post(id)
-    if post_to_delete:
-        my_posts.pop(post_to_delete)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The post ID has not been found")
-
-
-@app.get("/posts/{post_id}")
-def get_post(post_id: int):
-    returned_post = find_post(post_id)
-    if returned_post:
-        return {"returned post": returned_post}
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ID: {post_id} has not been found")
-
-
-def find_post(post_id):
-    for element in my_posts:
-        if element.get("id") == post_id:
-            print(element)
-            return element
-    return None
-
-def find_index_post(post_id):
-    for i, post in enumerate(my_posts):
-        if post.get("id") == post_id:
-            print(f'Returning element in my_post with index: {i} as id was: {post_id}')
-            return i
-
-
-#FIXME 
-@app.put("/posts/{post_id}", status_code=status.HTTP_202_ACCEPTED)
-def update_post(post_id: int, post: Post):
-    returned_post_id = find_index_post(post_id)
-    print(f'Found post index is: {returned_post_id}')
-
-    if returned_post_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ID: {post_id} has not been found")
-
-    post_dict = post.model_dump()
-    post_dict["id"] = post_id
-    my_posts[returned_post_id] = post_dict
-    return f"Post with id: {post_dict} updated"
-
-    
 
 
 
 
-
-## 1h 48min 17 sec 
-## 2h 00min 47 sec
-## 2h 06min 38 sec
