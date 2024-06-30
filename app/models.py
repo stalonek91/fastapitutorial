@@ -5,9 +5,7 @@ from sqlalchemy import Column, Integer, Text, String, Boolean, DateTime
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 
 
-from pydantic import BaseModel
-from datetime import datetime
-from typing import Optional
+
 
 class Post(base):
     __tablename__ = 'class_post'

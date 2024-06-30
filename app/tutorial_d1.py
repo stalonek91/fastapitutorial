@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 models.base.metadata.create_all(bind=engine)
 
-#TODO: youtube: 5:16
+#TODO: youtube: 5:26
 
 app = FastAPI()
 
@@ -65,6 +65,31 @@ async def add_sql_post(request: Request, db: Session = Depends(get_sql_db)):
     db.refresh(new_post)
     return new_post
 
+
+@app.delete("/delete_post/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(post_id: int, db: Session = Depends(get_sql_db)):
+    post_to_delete = db.query(models.Post).filter(models.Post.id == post_id)
+    print(post_to_delete)
+    if not post_to_delete.first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Post with id {post_id} not found')
+
+    post_to_delete.delete(synchronize_session=False)
+    db.commit()
+
+#TODO: add the option to update only provided by user values
+@app.put("/update_post/{post_id}", status_code=status.HTTP_202_ACCEPTED)
+def update_post(post_id: int, post_data: schemas.Post = Body(...), db: Session = Depends(get_sql_db)):
+    post_query = db.query(models.Post).filter(models.Post.id == post_id)
+    post = post_query.first()
+
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Post with id {post_id} not found')
+
+    print(f'Post_data: {post_data.model_dump()}')
+    post_query.update(post_data.model_dump(), synchronize_session=False)
+    db.commit()
+
+    return post_query
 
 
 
