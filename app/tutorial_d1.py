@@ -6,24 +6,57 @@ import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 import os
-from . import models, database, schemas
+from . import models, database, schemas, utils
 from .database import engine, get_sql_db
 from sqlalchemy.orm import Session
 
+
 models.base.metadata.create_all(bind=engine)
 
-#TODO: youtube: 5:26
+
+
+#TODO: youtube: 6:10:26
 
 app = FastAPI()
 
+@app.get("/users/login/{user_id}", response_model=schemas.User_return)
+def users_login(user_login: schemas.User_login, db: Session = Depends(get_sql_db)):
+    pass
 
-@app.get("/sqlpost", response_model=List[schemas.Post])
+
+@app.get("/users", response_model=List[schemas.User], status_code=status.HTTP_200_OK)
+def users(db: Session = Depends(get_sql_db)):
+    users = db.query(models.User).all()
+    return users
+
+@app.post("/users/add", response_model=schemas.User_return, status_code=status.HTTP_201_CREATED)
+def users_add(user: schemas.User_create, db: Session = Depends(get_sql_db)):
+
+    try:
+        hashed_password = utils.hash_password(user.password)
+        user.password = hashed_password
+
+        new_user = models.User(
+            **user.model_dump()
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    
+
+    return new_user
+
+@app.get("/sqlpost", response_model=List[schemas.PostResponse])
 def read_sql_posts(db: Session = Depends(get_sql_db)):
     posts = db.query(models.Post).all()
     return posts
 
 
-@app.get("/sqlpost/{post_id}", response_model=schemas.Post)
+@app.get("/sqlpost/{post_id}", response_model=schemas.PostResponse)
 def get_post_id(post_id: int, db: Session = Depends(get_sql_db)):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
 
@@ -34,10 +67,10 @@ def get_post_id(post_id: int, db: Session = Depends(get_sql_db)):
 
 
 #post with pydantic not request
-@app.post("/add_post_pydantic", status_code=status.HTTP_201_CREATED)
-def add_post_pydantic(post: schemas.Post, db: Session = Depends(get_sql_db)):
+@app.post("/add_post_pydantic", status_code=status.HTTP_201_CREATED, response_model=schemas.PostUpdate)
+def add_post_pydantic(post_data: schemas.PostBase, db: Session = Depends(get_sql_db)):
     new_post = models.Post(
-        **post.model_dump()
+        **post_data.model_dump()
     )
     db.add(new_post)
     db.commit()
@@ -76,9 +109,9 @@ def delete_post(post_id: int, db: Session = Depends(get_sql_db)):
     post_to_delete.delete(synchronize_session=False)
     db.commit()
 
-#TODO: add the option to update only provided by user values
+#FIXME: kurwa nie dziala put
 @app.put("/update_post/{post_id}", status_code=status.HTTP_202_ACCEPTED)
-def update_post(post_id: int, post_data: schemas.Post = Body(...), db: Session = Depends(get_sql_db)):
+def update_post(post_id: int, post_data: schemas.PostUpdate = Body(...), db: Session = Depends(get_sql_db)):
     post_query = db.query(models.Post).filter(models.Post.id == post_id)
     post = post_query.first()
 
@@ -90,21 +123,3 @@ def update_post(post_id: int, post_data: schemas.Post = Body(...), db: Session =
     db.commit()
 
     return post_query
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
-
-
-
-
