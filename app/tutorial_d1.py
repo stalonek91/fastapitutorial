@@ -15,13 +15,21 @@ models.base.metadata.create_all(bind=engine)
 
 
 
-#TODO: youtube: 6:10:26
+#TODO: youtube: 6:15:26
 
 app = FastAPI()
 
-@app.get("/users/login/{user_id}", response_model=schemas.User_return)
-def users_login(user_login: schemas.User_login, db: Session = Depends(get_sql_db)):
-    pass
+@app.get("/users/{user_id}", response_model=schemas.User_return)
+def users_login(user_id: int, db: Session = Depends(get_sql_db)):
+
+    selected_user = db.query(models.User).filter(models.User.id == user_id)
+    user = selected_user.first()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'User with id: {user_id} not found')
+
+
+    return user
 
 
 @app.get("/users", response_model=List[schemas.User], status_code=status.HTTP_200_OK)
