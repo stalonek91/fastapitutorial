@@ -20,6 +20,7 @@ class PostUpdate(PostBase):
 
 class PostResponse(BaseModel):
     id: int
+    title: str
 
     class Config:
         orm_mode = True
