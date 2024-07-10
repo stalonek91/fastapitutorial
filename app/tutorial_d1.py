@@ -15,7 +15,7 @@ models.base.metadata.create_all(bind=engine)
 
 
 
-#TODO: youtube: 6:45:0
+#TODO: youtube: 7:02:30
 
 app = FastAPI()
 
